@@ -188,12 +188,10 @@ For issues or suggestions, contact the bot developer.
 
 async def languages_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /languages command."""
-    # Organize languages in columns for better display
     lang_list = []
     for i, (name, code) in enumerate(LANGUAGES.items()):
         lang_list.append(f"• {name} (`{code}`)")
     
-    # Split into chunks for better readability
     chunks = [lang_list[i:i+8] for i in range(0, len(lang_list), 8)]
     
     message = f"""
@@ -207,7 +205,6 @@ Example: `Hello to es` → translates to Spanish
 Use /setlang to set your default translation language.
 """
     
-    # Add pagination for many languages
     keyboard = []
     if len(chunks) > 1:
         for i in range(1, min(len(chunks), 4)):
@@ -225,13 +222,12 @@ async def setlang_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     row = []
     for i, (name, code) in enumerate(LANGUAGES.items()):
         row.append(InlineKeyboardButton(name, callback_data=f"setlang_{code}"))
-        if len(row) == 2:  # 2 columns for better mobile display
+        if len(row) == 2:
             keyboard.append(row)
             row = []
     if row:
         keyboard.append(row)
     
-    # Add cancel button
     keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -259,15 +255,12 @@ async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         return
     
-    # Get user's default language or fallback to English
     user_id = update.effective_user.id
     target_lang = user_preferences.get(user_id, "en")
     
     try:
         translator = GoogleTranslator(target=target_lang)
         translated = translator.translate(text_to_translate)
-        
-        # Detect source language
         source_lang = detect_text_language(text_to_translate) or "en"
         
         response = format_translation_response(
@@ -277,7 +270,6 @@ async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             target_lang
         )
         
-        # Add quick action buttons
         keyboard = [
             [InlineKeyboardButton(
                 "🔄 Translate to another language",
@@ -359,27 +351,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     
     # Check for "text to lang" pattern
-    # Pattern: "something to fr" or "Hello to es"
     match = re.search(r"\s+to\s+([a-z]{2}(-[A-Z]{2})?)$", text.lower())
     target_lang = None
     clean_text = text
     
     if match:
         lang_code = match.group(1)
-        # Validate language code
         if any(code == lang_code for code in LANGUAGES.values()):
             target_lang = lang_code
             clean_text = text[:match.start()].strip()
     
-    # If no specific language requested, use user's default
     if not target_lang:
         target_lang = user_preferences.get(user_id, "en")
     
     try:
         translator = GoogleTranslator(target=target_lang)
         translated = translator.translate(clean_text)
-        
-        # Detect source language
         source_lang = detect_text_language(clean_text) or "en"
         
         response = format_translation_response(
@@ -389,11 +376,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             target_lang
         )
         
-        # Add interactive buttons
         keyboard = [
             [
                 InlineKeyboardButton("🔄 Swap", callback_data=f"swap_{source_lang}_{target_lang}"),
-                InlineKeyboardButton("📋 Copy", callback_data=f"copy_{translated[:20]}")
             ],
             [InlineKeyboardButton("⚙️ Change Language", callback_data="set_language")]
         ]
@@ -470,16 +455,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 )
                 
         elif data.startswith("lang_page_"):
-            page = int(data.split("_")[2])
-            # Return to language list with page
             await languages_command(update, context)
-            
-        elif data.startswith("copy_"):
-            await query.edit_message_text(
-                "📋 *Copy to clipboard*\n\n"
-                "Use the copy button in the Telegram app to copy the text.",
-                parse_mode="Markdown"
-            )
             
     except Exception as e:
         logger.error(f"Callback error: {e}")
@@ -493,31 +469,18 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Handle errors."""
     logger.error(f"Update {update} caused error: {context.error}")
     
-    # Send error message to user if possible
     if update and update.effective_message:
         await update.effective_message.reply_text(
             "⚠️ Something went wrong. Please try again later.",
             parse_mode="Markdown"
         )
 
-# ============ WEBHOOK SETUP (for Railway) ============
-async def setup_webhook(application: Application) -> None:
-    """Set up webhook for Railway deployment."""
-    if ENVIRONMENT == "production":
-        webhook_url = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
-        if not webhook_url:
-            logger.warning("RAILWAY_PUBLIC_DOMAIN not set, falling back to polling")
-            return
-            
-        webhook_url = f"https://{webhook_url}/webhook"
-        await application.bot.set_webhook(webhook_url)
-        logger.info(f"Webhook set to: {webhook_url}")
-
 # ============ MAIN FUNCTION ============
 def main():
     """Start the bot."""
     logger.info("🚀 Starting Language56 Translator Bot...")
     logger.info(f"Environment: {ENVIRONMENT}")
+    logger.info(f"Bot Token: {TOKEN[:10]}... (hidden for security)")
     
     # Create application
     application = Application.builder().token(TOKEN).build()
@@ -542,18 +505,12 @@ def main():
     # Add error handler
     application.add_error_handler(error_handler)
     
-    # Start the bot
-    if ENVIRONMENT == "production":
-        # Use webhook for production
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=None  # Will be set in setup_webhook
-        )
-    else:
-        # Use polling for development
-        logger.info("Starting bot in polling mode...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Start the bot using polling (simpler and more reliable)
+    logger.info("Starting bot in polling mode...")
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True
+    )
 
 if __name__ == "__main__":
     main()
