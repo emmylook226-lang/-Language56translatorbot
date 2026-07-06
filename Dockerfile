@@ -20,7 +20,7 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 ENV ENVIRONMENT=production
 
-# Expose port
+# Expose port (for Railway health checks)
 EXPOSE 8080
 
 # Run the bot
